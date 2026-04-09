@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">iTunes Wear</string>
+    <string name="hello_world">From the Square world,\nHello, %1$s!</string>
+</resources>

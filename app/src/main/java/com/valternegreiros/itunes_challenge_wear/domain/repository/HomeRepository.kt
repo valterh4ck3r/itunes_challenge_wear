@@ -1,0 +1,34 @@
+package com.valternegreiros.itunes_challenge_wear.domain.repository
+
+import com.valternegreiros.itunes_challenge_wear.domain.model.ResponseState
+import com.valternegreiros.itunes_challenge_wear.domain.model.Song
+import kotlinx.coroutines.flow.Flow
+
+interface HomeRepository {
+
+    /**
+     * Search songs by term with pagination.
+     * Returns a Flow to support offline-first: emits cached data first, then network data.
+     */
+    fun searchSongs(term: String, limit: Int, offset: Int, forceRemote: Boolean = false): Flow<ResponseState<List<Song>>>
+    
+    /**
+     * Get all tracks for a specific album by collectionId.
+     */
+    fun getAlbumTracks(collectionId: Long): Flow<ResponseState<List<Song>>>
+
+    /**
+     * Get recently played songs from local cache.
+     */
+    fun getRecentlyPlayedSongs(): Flow<List<Song>>
+
+    /**
+     * Mark a song as recently played (updates lastPlayedAt timestamp).
+     */
+    suspend fun markSongAsPlayed(song: Song)
+
+    /**
+     * Clear all recently played songs from local cache.
+     */
+    suspend fun clearRecentlyPlayed()
+}
