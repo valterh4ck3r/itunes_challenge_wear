@@ -1,15 +1,11 @@
 package com.valternegreiros.itunes_challenge_wear.ui.features.home
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,321 +13,239 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Alignment.Companion
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.valternegreiros.itunes_challenge_wear.domain.model.ResponseState
-import com.valternegreiros.itunes_challenge_wear.domain.model.Song
+import coil.compose.AsyncImage
+import com.valentinilk.shimmer.shimmer
 import com.valternegreiros.itunes_challenge_wear.ui.features.home.components.PullToRefreshLayout
-import com.valternegreiros.itunes_challenge_wear.ui.features.home.components.SearchBar
-import com.valternegreiros.itunes_challenge_wear.ui.features.home.components.SongListItem
-import com.valternegreiros.itunes_challenge_wear.ui.features.home.components.SongListItemShimmer
-import com.valternegreiros.itunes_challenge_wear.ui.features.song.components.SongOptionsBottomSheet
+import com.valternegreiros.itunes_challenge_wear.ui.features.home.model.HomeUiState
 import com.valternegreiros.itunes_challenge_wear.ui.theme.DarkBackground
+import com.valternegreiros.itunes_challenge_wear.ui.theme.OnDarkTextSecondary
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    modifier: Modifier = Modifier,
     viewModel: HomeViewModel,
     onNavigateToSong: (String) -> Unit,
-    onNavigateToAlbum: (String) -> Unit
 ) {
-    val stateResponse by viewModel.uiState.collectAsStateWithLifecycle()
-    val uiState by remember(stateResponse) {
-        derivedStateOf {
-            (stateResponse as? ResponseState.Success)?.data ?: viewModel.getUiData()
-        }
-    }
+    val uiState by viewModel.uiState.collectAsState()
 
-    val isConnected by viewModel.isConnected.collectAsStateWithLifecycle(initialValue = true)
-    val listState = rememberLazyListState()
-    
-    var isSearchVisible by remember { mutableStateOf(false) }
-    
-    // Bottom Sheet state
-    var showSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState()
-    var selectedSongForOptions by remember { mutableStateOf<Song?>(null) }
+    // Get current time to show at top like in the image
+    val currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
-    // Load Cache Itens
-    LaunchedEffect(Unit) {
-        viewModel.loadRecentlyPlayed()
-    }
-
-    // Hide search bar on pull down to refresh
-    LaunchedEffect(uiState.isRefreshing) {
-        if (uiState.isRefreshing) {
-            isSearchVisible = false
-        }
-    }
-
-    // Pagination: trigger load when scrolled near end
-    val shouldLoadMore by remember {
-        derivedStateOf {
-            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            val totalItems = listState.layoutInfo.totalItemsCount
-            lastVisibleIndex >= totalItems - 3 && !uiState.isLoadingMore && uiState.canLoadMore
-        }
-    }
-
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore && uiState.songs.isNotEmpty()) {
-            viewModel.loadNextPage()
-        }
-    }
-
-    PullToRefreshLayout(
-        isRefreshing = uiState.isRefreshing,
-        onRefresh = { viewModel.refreshSongs() },
-        isEnabled = isConnected,
-        modifier = modifier.fillMaxSize()
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBackground)
     ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .background(DarkBackground)
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp)
-        ) {
-
-            // Title and Search Icon
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+        when (val state = uiState) {
+            is HomeUiState.Loading -> {
+                PullToRefreshLayout(
+                    isRefreshing = true,
+                    onRefresh = { viewModel.refreshWithRandomTerm() }
                 ) {
-                    Text(
-                        text = "Songs",
-                        color = Color.White,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
-                    if (!isSearchVisible) {
-                        IconButton(onClick = { isSearchVisible = true }) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Open search bar",
-                                tint = Color.White
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(100.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.1f))
+                                .shimmer()
+                        )
+                    }
+                }
+            }
+
+            is HomeUiState.Success -> {
+                val data = state.data
+                PullToRefreshLayout(
+                    isRefreshing = data.isRefreshing,
+                    onRefresh = { viewModel.refreshWithRandomTerm() }
+                ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            top = 16.dp,
+                            bottom = 48.dp,
+                            start = 12.dp,
+                            end = 12.dp
+                        ),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        item {
+                            Text(
+                                text = currentTime,
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 6.dp),
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.Medium
                             )
                         }
-                    }
-                }
-            }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
-
-            // Search bar
-            item {
-                AnimatedVisibility(
-                    visible = isSearchVisible,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
-                ) {
-                    Column {
-                        SearchBar(
-                            query = uiState.searchQuery,
-                            onQueryChange = { viewModel.onSearchQueryChanged(it) }
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                }
-            }
-
-            // Recently played section
-            if (uiState.recentlyPlayed.isNotEmpty()) {
-                item {
-                    Text(
-                        text = "Recently Played",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(vertical = 12.dp)
-                    )
-                }
-
-                item {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(
-                            items = uiState.recentlyPlayed,
-                            key = { "recent_${it.id}" }
-                        ) { song ->
-                            // Custom item for horizontal scroll
+                        item {
                             Column(
                                 modifier = Modifier
-                                    .width(120.dp)
-                                    .clickable {
-                                        viewModel.onSongClick(song)
-                                        val json = com.google.gson.Gson().toJson(song.originalSong)
-                                        val base64 = android.util.Base64.encodeToString(json.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-                                        onNavigateToSong(base64)
-                                    },
-                                horizontalAlignment = Alignment.Start
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(120.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF1A1A1A))
-                                ) {
-                                    val artworkUrl = song.albumArtUrl?.replace("100x100bb", "300x300bb")
-                                    coil.compose.AsyncImage(
-                                        model = artworkUrl,
-                                        contentDescription = "Album art for ${song.title}",
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = song.title,
+                                    text = "Discovering",
+                                    color = OnDarkTextSecondary,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = data.searchQuery,
                                     color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                            }
+                        }
+
+                        if (data.songs.isEmpty()) {
+                            item {
                                 Text(
-                                    text = song.artist,
-                                    color = com.valternegreiros.itunes_challenge_wear.ui.theme.OnDarkTextSecondary,
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    text = "No songs found",
+                                    color = OnDarkTextSecondary,
+                                    modifier = Modifier.padding(top = 32.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            items(data.songs) { songUi ->
+                                HomeSongCard(
+                                    title = songUi.title,
+                                    artist = songUi.artist,
+                                    albumArtUrl = songUi.albumArtUrl,
+                                    onClick = {
+                                        viewModel.onSongClicked(songUi.originalSong, onNavigateToSong)
+                                    }
                                 )
                             }
                         }
                     }
                 }
+            }
 
-                item { Spacer(modifier = Modifier.height(24.dp)) }
-
-                item {
+            is HomeUiState.Error -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                ) {
                     Text(
-                        text = "All Songs",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(vertical = 8.dp)
+                        text = state.message,
+                        color = Color.Red,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(16.dp)
                     )
-                }
-            }
-
-            when(stateResponse){
-                is ResponseState.Success -> {
-                    // Song list with pagination
-                    items(
-                        items = uiState.songs,
-                        key = { "song_${it.id}" }
-                    ) { song ->
-                        SongListItem(
-                            title = song.title,
-                            artist = song.artist,
-                            albumArtUrl = song.albumArtUrl,
-                            onClick = {
-                                viewModel.onSongClick(song)
-                                val json = com.google.gson.Gson().toJson(song.originalSong)
-                                val base64 = android.util.Base64.encodeToString(json.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-                                onNavigateToSong(base64)
-                            },
-                            onMoreClick = {
-                                selectedSongForOptions = song.originalSong
-                                showSheet = true
-                            }
-                        )
-                    }
-                }
-                is ResponseState.Loading -> {
-                    // Song List Shimmer Layout
-                    items(10) {
-                        SongListItemShimmer()
-                    }
-                }
-                is ResponseState.Error -> {
-                    // Shows Error
-                    item {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Spacer(modifier = Modifier.height(46.dp))
-                            Icon(
-                                imageVector = Icons.Outlined.WarningAmber,
-                                contentDescription = "Warning",
-                                tint = Color.White,
-                                modifier = Modifier.width(45.dp).height(45.dp)
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Text(
-                                text = "No Internet",
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                modifier = Modifier.padding(16.dp),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Loading more indicator
-            if (uiState.isLoadingMore) {
-                items(3) {
-                    SongListItemShimmer()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Try again (Pull to Refresh)",
+                        color = OnDarkTextSecondary,
+                        fontSize = 12.sp,
+                        modifier = Modifier.clickable { viewModel.refreshWithRandomTerm() }
+                    )
                 }
             }
         }
     }
+}
 
-    if (showSheet) {
-        SongOptionsBottomSheet(
-            song = selectedSongForOptions,
-            sheetState = sheetState,
-            onDismissRequest = { },
-            onViewAlbumClick = {
-                selectedSongForOptions?.let { s ->
-                    val json = com.google.gson.Gson().toJson(s)
-                    val base64 = android.util.Base64.encodeToString(json.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-                    onNavigateToAlbum(base64)
-                }
+@Composable
+fun HomeSongCard(
+    title: String,
+    artist: String,
+    albumArtUrl: String?,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF1C1C1C)) // Sleek dark surface color for the card
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Thumbnail with Coil
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF2B2B2B))
+        ) {
+            if (!albumArtUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = albumArtUrl,
+                    contentDescription = "Artwork for $title",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.MusicNote,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(28.dp),
+                    tint = OnDarkTextSecondary
+                )
             }
-        )
+        }
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        // Text info (Title and Artist)
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = artist,
+                color = OnDarkTextSecondary,
+                fontSize = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }

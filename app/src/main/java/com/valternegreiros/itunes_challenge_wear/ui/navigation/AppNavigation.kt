@@ -34,9 +34,6 @@ fun AppNavigation(
                 onNavigateToSong = { songBase64 ->
                     navController.navigate("song/$songBase64")
                 },
-                onNavigateToAlbum = { songBase64 ->
-                    navController.navigate("album/$songBase64")
-                }
             )
         }
         composable("song/{songBase64}") {

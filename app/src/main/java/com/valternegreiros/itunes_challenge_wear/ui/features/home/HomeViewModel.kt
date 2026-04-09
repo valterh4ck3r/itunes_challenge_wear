@@ -1,224 +1,112 @@
 package com.valternegreiros.itunes_challenge_wear.ui.features.home
 
-import android.util.Log
+import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.valternegreiros.itunes_challenge_wear.data.connectivity.NetworkConnectivityObserver
+import com.google.gson.Gson
 import com.valternegreiros.itunes_challenge_wear.domain.model.ResponseState
 import com.valternegreiros.itunes_challenge_wear.domain.model.Song
 import com.valternegreiros.itunes_challenge_wear.domain.repository.HomeRepository
 import com.valternegreiros.itunes_challenge_wear.ui.features.home.model.HomeUiData
+import com.valternegreiros.itunes_challenge_wear.ui.features.home.model.HomeUiState
 import com.valternegreiros.itunes_challenge_wear.ui.features.home.model.SongUi
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val repository: HomeRepository,
-    private val connectivityObserver: NetworkConnectivityObserver
+    private val repository: HomeRepository
 ) : ViewModel() {
 
-    val isConnected = connectivityObserver.isConnected
+    private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
+    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    private val _uiState = MutableStateFlow<ResponseState<HomeUiData>>(ResponseState.Loading)
-    val uiState: StateFlow<ResponseState<HomeUiData>> = _uiState.asStateFlow()
+    private var currentData = HomeUiData()
 
-    private var uiData = HomeUiData()
-    fun getUiData() = uiData
+    private val searchTerms = listOf(
+        "Ed Sheeran", "Queen", "Taylor Swift", "Beatles", "Coldplay", 
+        "Rihanna", "Drake", "Imagine Dragons", "The Weeknd", "Dua Lipa",
+        "Michael Jackson", "Eminem", "Bruno Mars", "Adele", "Justin Bieber",
+        "Maroon 5", "Pink Floyd", "Linkin Park", "Arctic Monkeys", "Radiohead"
+    )
 
-    private var allLoadedSongs: List<SongUi> = emptyList()
-    private var currentOffset = 0
-    private var searchJob: Job? = null
+    init {
+        // Start with a random term from our list
+        refreshWithRandomTerm()
+        observeRecentlyPlayed()
+    }
 
-    companion object {
-        private const val PAGE_SIZE = 20
-        private const val SEARCH_DEBOUNCE_MS = 800L
-        private val RANDOM_TERMS = listOf(
-            "Drake", "The Beatles", "Daft Punk", "Rihanna",
-            "Queen", "Coldplay", "Metallica", "Eminem",
-            "Bruno Mars", "Pop", "Rock", "Jazz", "Lofi"
+    fun refreshWithRandomTerm() {
+        val randomTerm = searchTerms.random()
+        searchSongs(randomTerm)
+    }
+
+    private fun observeRecentlyPlayed() {
+        viewModelScope.launch {
+            repository.getRecentlyPlayedSongs().collect { songs ->
+                currentData = currentData.copy(recentlyPlayed = songs.map { it.toUiModel() })
+                if (_uiState.value is HomeUiState.Success) {
+                    _uiState.update { HomeUiState.Success(currentData) }
+                }
+            }
+        }
+    }
+
+    fun searchSongs(query: String) {
+        if (query.isBlank()) {
+            currentData = currentData.copy(songs = emptyList(), searchQuery = "")
+            _uiState.value = HomeUiState.Success(currentData)
+            return
+        }
+        
+        viewModelScope.launch {
+            _uiState.value = HomeUiState.Loading
+            repository.searchSongs(query, limit = 20, offset = 0).collect { result ->
+                when (result) {
+                    is ResponseState.Loading -> {
+                        _uiState.value = HomeUiState.Loading
+                    }
+                    is ResponseState.Success -> {
+                        currentData = currentData.copy(
+                            songs = result.data.map { it.toUiModel() },
+                            searchQuery = query,
+                            isRefreshing = false,
+                            canLoadMore = result.data.size >= 20
+                        )
+                        _uiState.value = HomeUiState.Success(currentData)
+                    }
+                    is ResponseState.Error -> {
+                        _uiState.value = HomeUiState.Error(result.message ?: "Error searching for songs")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun Song.toUiModel(): SongUi {
+        return SongUi(
+            id = trackId.toString(),
+            title = trackName,
+            artist = artistName,
+            albumArtUrl = artworkUrl100,
+            originalSong = this
         )
     }
 
-    init {
-        loadRecentlyPlayed()
-        searchSongs(RANDOM_TERMS.random())
-        observeConnection()
+    fun encodeSongToBase64(song: Song): String {
+        val json = Gson().toJson(song)
+        return Base64.encodeToString(json.toByteArray(), Base64.NO_WRAP or Base64.URL_SAFE)
     }
-
-    private fun observeConnection() {
+    
+    fun onSongClicked(song: Song, onNavigate: (String) -> Unit) {
         viewModelScope.launch {
-            connectivityObserver.isConnected.collect { connected ->
-                if (connected) {
-                    // Retry search if it failed or is empty
-                    if (_uiState.value is ResponseState.Error || uiData.songs.isEmpty()) {
-                        searchSongs(uiData.searchQuery.ifBlank { RANDOM_TERMS.random() })
-                    }
-                }
-            }
+            repository.markSongAsPlayed(song)
+            onNavigate(encodeSongToBase64(song))
         }
     }
-
-    fun onSearchQueryChanged(query: String) {
-        uiData = uiData.copy(searchQuery = query)
-        if (_uiState.value is ResponseState.Success) {
-            _uiState.value = ResponseState.Success(uiData)
-        }
-
-        // Debounce search
-        searchJob?.cancel()
-        searchJob = viewModelScope.launch {
-            delay(SEARCH_DEBOUNCE_MS)
-            if (query.isBlank()) {
-                searchSongs(RANDOM_TERMS.random())
-            } else {
-                searchSongs(query)
-            }
-        }
-    }
-
-    fun loadNextPage() {
-        if (uiData.isLoadingMore || !uiData.canLoadMore) return
-
-        uiData = uiData.copy(isLoadingMore = true)
-        if (_uiState.value is ResponseState.Success) {
-            _uiState.value = ResponseState.Success(uiData)
-        }
-
-        viewModelScope.launch {
-            loadRecentlyPlayed()
-            val nextBatch = allLoadedSongs.drop(currentOffset).take(PAGE_SIZE)
-            currentOffset += nextBatch.size
-
-            uiData = uiData.copy(
-                songs = uiData.songs + nextBatch,
-                isLoadingMore = false,
-                canLoadMore = currentOffset < allLoadedSongs.size
-            )
-            _uiState.value = ResponseState.Success(uiData)
-        }
-    }
-
-    fun onSongClick(song: SongUi) {
-        viewModelScope.launch {
-            repository.markSongAsPlayed(song.originalSong)
-        }
-    }
-
-    fun clearError() {
-        _uiState.value = ResponseState.Success(uiData)
-    }
-
-    fun refreshSongs() {
-        viewModelScope.launch {
-            // Clears the recently played cache and updates the UI
-            loadRecentlyPlayed()
-
-            // Predefined list of popular artists/genres to create a dynamic feed
-            val randomTerms = listOf(
-                "Drake", "The Beatles", "Daft Punk", "Rihanna",
-                "Queen", "Coldplay", "Metallica", "Eminem",
-                "Bruno Mars", "Pop", "Rock", "Jazz", "Lofi"
-            )
-            // Pick a random term to simulate a "For You" discovery feed on refresh
-            val query = randomTerms.random()
-
-            // Update the search query state so the UI reflects what is currently being shown
-            uiData = uiData.copy(searchQuery = query)
-            if (_uiState.value is ResponseState.Success) {
-                _uiState.value = ResponseState.Success(uiData)
-            }
-
-            searchSongs(query, isRefresh = true)
-        }
-    }
-
-    private fun searchSongs(term: String, isRefresh: Boolean = false) {
-        currentOffset = 0
-        if (isRefresh) {
-            uiData = uiData.copy(isRefreshing = true, canLoadMore = true)
-            if (_uiState.value is ResponseState.Success) {
-                _uiState.value = ResponseState.Success(uiData)
-            }
-        } else {
-            uiData = uiData.copy(songs = emptyList(), canLoadMore = true)
-            _uiState.value = ResponseState.Loading
-        }
-
-        viewModelScope.launch {
-            // Requesting 200 items as requested for memory lazy loading
-            repository.searchSongs(term, 200, 0, forceRemote = isRefresh)
-                .collect { state ->
-                    when (state) {
-                        is ResponseState.Success -> {
-                            allLoadedSongs = state.data.toUiList()
-
-                            if (currentOffset < PAGE_SIZE) {
-                                currentOffset = PAGE_SIZE
-                            }
-
-                            val visibleSongs = allLoadedSongs.take(currentOffset)
-
-                            uiData = uiData.copy(
-                                songs = visibleSongs,
-                                isRefreshing = false,
-                                canLoadMore = currentOffset < allLoadedSongs.size
-                            )
-                            _uiState.value = ResponseState.Success(uiData)
-                        }
-
-                        is ResponseState.Error -> {
-                            _uiState.value = ResponseState.Error(
-                                statusCode = state.statusCode,
-                                message = state.message
-                            )
-                        }
-
-                        is ResponseState.Loading -> {
-                            if (!isRefresh) {
-                                _uiState.value = ResponseState.Loading
-                            }
-                        }
-                    }
-                }
-        }
-    }
-
-    fun loadRecentlyPlayed() {
-        viewModelScope.launch {
-            repository.getRecentlyPlayedSongs()
-                .catch { Log.d("HomeViewModel", "Error loading recently played: ${it.message}")}
-                .collect { songs ->
-                    val recentlyPlayedUi = songs.toUiList()
-                    uiData = uiData.copy(recentlyPlayed = recentlyPlayedUi)
-                    
-                    // If we are currently in Success state, update it.
-                    // If we are in Loading or Error, the next Success emission will use the updated uiData.
-                    if (_uiState.value is ResponseState.Success) {
-                        _uiState.value = ResponseState.Success(uiData)
-                    }
-                }
-        }
-    }
-
-    private fun List<Song>.toUiList(): List<SongUi> {
-        return map { song ->
-            SongUi(
-                id = song.trackId.toString(),
-                title = song.trackName,
-                artist = song.artistName,
-                albumArtUrl = song.artworkUrl100,
-                originalSong = song
-            )
-        }
-    }
-
 }

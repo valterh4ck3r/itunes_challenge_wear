@@ -4,6 +4,7 @@ import android.content.Context
 import com.valternegreiros.itunes_challenge_wear.data.local.dao.SongDao
 import com.valternegreiros.itunes_challenge_wear.data.local.mapper.SongEntityMapper.toDomainList
 import com.valternegreiros.itunes_challenge_wear.data.local.mapper.SongEntityMapper.toEntity
+import com.valternegreiros.itunes_challenge_wear.data.local.mapper.SongEntityMapper.toEntityList
 import com.valternegreiros.itunes_challenge_wear.data.remote.api.ITunesApiService
 import com.valternegreiros.itunes_challenge_wear.data.remote.mapper.SongDtoMapper.toDomainList
 import com.valternegreiros.itunes_challenge_wear.domain.model.ResponseState
@@ -11,6 +12,7 @@ import com.valternegreiros.itunes_challenge_wear.domain.model.Song
 import com.valternegreiros.itunes_challenge_wear.domain.repository.HomeRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -40,8 +42,11 @@ class HomeRepositoryImpl @Inject constructor(
     ): Flow<ResponseState<List<Song>>> = flow {
         emit(ResponseState.Loading)
 
-        // Fetch from network
+        // 1. Try to fetch from network
         try {
+
+//            delay(5000)
+
             val response = apiService.searchSongs(
                 term = term,
                 limit = limit,
@@ -49,11 +54,26 @@ class HomeRepositoryImpl @Inject constructor(
             )
             val songs = response.results.toDomainList()
 
+            // 2. Cache successfully fetched songs
+            songDao.insertAll(songs.toEntityList())
+
             emit(ResponseState.Success(songs))
-        } catch (e: HttpException) {
-            emit(ResponseState.Error(statusCode = e.code(), message = e.message ?: "Unknown HttpException"))
         } catch (e: Exception) {
-            emit(ResponseState.Error(statusCode = null, message = e.message ?: "Network error"))
+            // 3. On failure, try to emit from cache
+            val cachedSongs = songDao.searchSongs(term, limit, offset).map { it.toDomainList() }
+            
+            // For search, we just take the first emission from local DB
+            var emittedFromCache = false
+            cachedSongs.collect { songs ->
+                if (songs.isNotEmpty() && !emittedFromCache) {
+                    emit(ResponseState.Success(songs))
+                    emittedFromCache = true
+                } else if (!emittedFromCache) {
+                    val statusCode = (e as? HttpException)?.code()
+                    emit(ResponseState.Error(statusCode = statusCode, message = e.message ?: "Network error"))
+                    emittedFromCache = true
+                }
+            }
         }
     }.flowOn(Dispatchers.IO)
 
@@ -63,11 +83,16 @@ class HomeRepositoryImpl @Inject constructor(
             val response = apiService.lookupByCollectionId(collectionId)
             // Filter out the album result, keep only songs
             val songs = response.results.toDomainList()
+            
+            // Cache album tracks
+            songDao.insertAll(songs.toEntityList())
+            
             emit(ResponseState.Success(songs))
-        } catch (e: HttpException) {
-            emit(ResponseState.Error(statusCode = e.code(), message = e.message ?: "Unknown HttpException"))
         } catch (e: Exception) {
-            emit(ResponseState.Error(statusCode = null, message = e.message ?: "Network error"))
+            // Fallback to cache by collectionId if possible (need a way to query by collectionId in DAO)
+            // For now, emit the error as the DAO doesn't have a specific getTracksByCollectionId flow yet
+            val statusCode = (e as? HttpException)?.code()
+            emit(ResponseState.Error(statusCode = statusCode, message = e.message ?: "Network error"))
         }
     }.flowOn(Dispatchers.IO)
 
