@@ -45,8 +45,6 @@ class HomeRepositoryImpl @Inject constructor(
         // 1. Try to fetch from network
         try {
 
-//            delay(5000)
-
             val response = apiService.searchSongs(
                 term = term,
                 limit = limit,
