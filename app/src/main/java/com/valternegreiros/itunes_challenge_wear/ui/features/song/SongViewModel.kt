@@ -27,6 +27,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import okhttp3.OkHttpClient
+
 enum class SongUiStatus { SUCCESS, ERROR }
 
 data class SongUiState(
@@ -44,10 +47,16 @@ class SongViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: HomeRepository,
     private val connectivityObserver: NetworkConnectivityObserver,
-    @ApplicationContext context: Context
+    @ApplicationContext context: Context,
+    okHttpClient: OkHttpClient // Injected from NetworkModule
 ) : ViewModel() {
 
-    private val player = ExoPlayer.Builder(context).build()
+    private val player = ExoPlayer.Builder(context)
+        .setMediaSourceFactory(
+            androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
+                .setDataSourceFactory(OkHttpDataSource.Factory(okHttpClient))
+        )
+        .build()
 
     private val _uiState = MutableStateFlow(SongUiState())
     val uiState: StateFlow<SongUiState> = _uiState.asStateFlow()

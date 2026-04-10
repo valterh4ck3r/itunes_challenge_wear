@@ -100,6 +100,12 @@ class HomeRepositoryImpl @Inject constructor(
         }.flowOn(Dispatchers.IO)
     }
 
+    override fun getAllCachedSongs(limit: Int): Flow<List<Song>> {
+        return songDao.getAllCachedSongs(limit).map { entities ->
+            entities.toDomainList()
+        }.flowOn(Dispatchers.IO)
+    }
+
     override suspend fun markSongAsPlayed(song: Song) {
         val now = System.currentTimeMillis()
 

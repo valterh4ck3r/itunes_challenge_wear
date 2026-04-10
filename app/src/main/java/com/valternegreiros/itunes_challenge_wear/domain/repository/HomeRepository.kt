@@ -23,6 +23,11 @@ interface HomeRepository {
     fun getRecentlyPlayedSongs(): Flow<List<Song>>
 
     /**
+     * Get any cached songs from the database.
+     */
+    fun getAllCachedSongs(limit: Int): Flow<List<Song>>
+
+    /**
      * Mark a song as recently played (updates lastPlayedAt timestamp).
      */
     suspend fun markSongAsPlayed(song: Song)

@@ -38,6 +38,9 @@ fun AppNavigation(
                 },
                 onNavigateToHome = {
                     navController.navigate("home")
+                },
+                onNavigateToAlbum = { songBase64 ->
+                    navController.navigate("album/$songBase64")
                 }
             )
         }

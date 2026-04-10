@@ -39,6 +39,7 @@ fun MainNavigationScreen(
     viewModel: MainNavigationViewModel,
     onNavigateToSong: (String) -> Unit,
     onNavigateToHome: () -> Unit,
+    onNavigateToAlbum: (String) -> Unit,
 ) {
     val lastPlayedSong by viewModel.lastPlayedSong.collectAsState()
     val currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -90,8 +91,7 @@ fun MainNavigationScreen(
                     iconResId = R.drawable.ic_menu_now_playing,
                     onClick = {
                         viewModel.getEncodedLastSong()?.let { onNavigateToSong(it) }
-                    },
-                    enabled = lastPlayedSong != null
+                    }
                 )
             }
 
@@ -101,7 +101,7 @@ fun MainNavigationScreen(
                     text = "Albums",
                     iconResId = R.drawable.ic_menu_albums,
                     onClick = {
-                        // TODO: Implement Albums screen
+                        viewModel.getEncodedLastSong()?.let { onNavigateToAlbum(it) }
                     }
                 )
             }

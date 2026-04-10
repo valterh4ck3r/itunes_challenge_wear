@@ -19,8 +19,11 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE trackName LIKE '%' || :query || '%' OR artistName LIKE '%' || :query || '%' OR collectionName LIKE '%' || :query || '%' ORDER BY cachedAt DESC LIMIT :limit OFFSET :offset")
     fun searchSongs(query: String, limit: Int, offset: Int): Flow<List<SongEntity>>
 
-    @Query("SELECT * FROM songs WHERE lastPlayedAt IS NOT NULL ORDER BY lastPlayedAt DESC LIMIT 20")
+    @Query("SELECT * FROM songs WHERE lastPlayedAt IS NOT NULL ORDER BY lastPlayedAt DESC, trackId DESC LIMIT 20")
     fun getRecentlyPlayed(): Flow<List<SongEntity>>
+
+    @Query("SELECT * FROM songs ORDER BY cachedAt DESC, trackId DESC LIMIT :limit")
+    fun getAllCachedSongs(limit: Int): Flow<List<SongEntity>>
 
     @Query("UPDATE songs SET lastPlayedAt = :timestamp WHERE trackId = :trackId")
     suspend fun markAsPlayed(trackId: Long, timestamp: Long)

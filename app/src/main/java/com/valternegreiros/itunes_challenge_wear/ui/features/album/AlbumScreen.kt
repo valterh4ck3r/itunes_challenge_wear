@@ -1,8 +1,13 @@
 package com.valternegreiros.itunes_challenge_wear.ui.features.album
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,27 +19,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,64 +42,56 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.valternegreiros.itunes_challenge_wear.domain.model.ResponseState
-import com.valternegreiros.itunes_challenge_wear.domain.model.Song
-import com.valternegreiros.itunes_challenge_wear.ui.features.home.components.SongListItem
-import com.valternegreiros.itunes_challenge_wear.ui.features.song.components.SongOptionsBottomSheet
 import com.valternegreiros.itunes_challenge_wear.ui.theme.DarkBackground
 import com.valternegreiros.itunes_challenge_wear.ui.theme.OnDarkTextSecondary
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumScreen(
     viewModel: AlbumViewModel,
     onNavigateBack: () -> Unit,
     onSongClick: (String) -> Unit,
-    onNavigateToAlbum: (String) -> Unit
+    onNavigateToAlbum: (String) -> Unit // Included for consistency with AppNavigation, though might not be used here
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isConnected by viewModel.isConnected.collectAsStateWithLifecycle(initialValue = true)
+    val currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
     LaunchedEffect(isConnected) {
         if (isConnected && uiState is ResponseState.Error) {
             viewModel.refresh()
         }
     }
-    
-    // Bottom Sheet state
-    var showSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState()
-    var selectedSongForOptions by remember { mutableStateOf<Song?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    val title = (uiState as? ResponseState.Success)?.data?.albumTitle ?: ""
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { _, dragAmount ->
+                    if (dragAmount > 50) { // Detected swipe down
+                        onNavigateBack()
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
-                )
+                }
+            }
+    ) {
+        // Background Artwork (similar to SongScreen)
+        if (uiState is ResponseState.Success) {
+            val data = (uiState as ResponseState.Success<AlbumUiData>).data
+            val highResArtwork = data.albumArtUrl?.replace("100x100bb", "600x600bb")
+            AsyncImage(
+                model = highResArtwork,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(0.3f),
+                contentScale = ContentScale.Crop
             )
-        },
-        containerColor = DarkBackground
-    ) { padding ->
+        }
+
+        // Content
         when (uiState) {
             is ResponseState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -110,121 +100,171 @@ fun AlbumScreen(
             }
             is ResponseState.Success -> {
                 val data = (uiState as ResponseState.Success<AlbumUiData>).data
-                val highResArtwork = data.albumArtUrl?.replace("100x100bb", "600x600bb")
-
+                
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        top = 16.dp,
+                        bottom = 48.dp,
+                        start = 12.dp,
+                        end = 12.dp
+                    ),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    // Time
+                    item {
+                        Text(
+                            text = currentTime,
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp),
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // Album Header
                     item {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 24.dp),
+                                .padding(bottom = 12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // Large Album Art
-                            AsyncImage(
-                                model = highResArtwork,
-                                contentDescription = "Album art for ${data.albumTitle}",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(240.dp)
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .background(Color(0xFF1A1A1A))
-                            )
-                            
-                            Spacer(modifier = Modifier.height(24.dp))
-                            
                             Text(
                                 text = data.albumTitle,
                                 color = Color.White,
-                                fontSize = 28.sp,
+                                fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 24.dp)
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
                             Text(
                                 text = data.artistName,
                                 color = OnDarkTextSecondary,
-                                fontSize = 16.sp,
+                                fontSize = 14.sp,
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 24.dp)
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            
-                            Spacer(modifier = Modifier.height(32.dp))
                         }
                     }
 
+                    // Tracks
                     items(data.songs) { songUi ->
-                        SongListItem(
+                        AlbumSongCard(
                             title = songUi.title,
                             artist = songUi.artist,
                             albumArtUrl = songUi.albumArtUrl,
-                            onClick = { 
+                            onClick = {
                                 val json = com.google.gson.Gson().toJson(songUi.originalSong)
-                                val base64 = android.util.Base64.encodeToString(json.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+                                val base64 = android.util.Base64.encodeToString(
+                                    json.toByteArray(),
+                                    android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
+                                )
                                 onSongClick(base64)
-                            },
-                            onMoreClick = {
-                                selectedSongForOptions = songUi.originalSong
-                                showSheet = true
                             }
                         )
-                    }
-                    
-                    item {
-                        Spacer(modifier = Modifier.height(32.dp))
                     }
                 }
             }
             is ResponseState.Error -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    item {
-                        Spacer(modifier = Modifier.height(46.dp))
-                        Icon(
-                            imageVector = Icons.Outlined.WarningAmber,
-                            contentDescription = "Warning icon",
-                            tint = Color.White,
-                            modifier = Modifier.width(45.dp).height(45.dp)
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text(
-                            text = "No Internet",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            modifier = Modifier.padding(16.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.WarningAmber,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = (uiState as ResponseState.Error).message ?: "Error loading album",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = "Back",
+                        color = OnDarkTextSecondary,
+                        modifier = Modifier.clickable { onNavigateBack() }
+                    )
                 }
             }
         }
     }
+}
 
-    if (showSheet) {
-        SongOptionsBottomSheet(
-            song = selectedSongForOptions,
-            sheetState = sheetState,
-            onDismissRequest = { },
-            onViewAlbumClick = {
-                // If the user selects View Album inside AlbumScreen, technically they are already on the album.
-                // But if they clicked on a song that might have a different album, it navigates appropriately.
-                selectedSongForOptions?.let { s ->
-                    val json = com.google.gson.Gson().toJson(s)
-                    val base64 = android.util.Base64.encodeToString(json.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-                    onNavigateToAlbum(base64)
-                }
+@Composable
+fun AlbumSongCard(
+    title: String,
+    artist: String,
+    albumArtUrl: String?,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF1C1C1C)) 
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF2B2B2B))
+        ) {
+            if (!albumArtUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = albumArtUrl,
+                    contentDescription = "Artwork for $title",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.MusicNote,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(28.dp),
+                    tint = OnDarkTextSecondary
+                )
             }
-        )
+        }
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = artist,
+                color = OnDarkTextSecondary,
+                fontSize = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }

@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -23,8 +24,13 @@ class MainNavigationViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            repository.getRecentlyPlayedSongs().collect { songs ->
-                _lastPlayedSong.value = songs.firstOrNull()
+            combine(
+                repository.getRecentlyPlayedSongs(),
+                repository.getAllCachedSongs(1)
+            ) { recently, cached ->
+                recently.firstOrNull() ?: cached.firstOrNull()
+            }.collect { song ->
+                _lastPlayedSong.value = song
             }
         }
     }
