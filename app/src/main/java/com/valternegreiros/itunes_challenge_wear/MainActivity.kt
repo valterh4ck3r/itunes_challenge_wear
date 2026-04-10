@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(showSplash) {
                     if (!showSplash) {
-                        navController.navigate("home") {
+                        navController.navigate("main") {
                             popUpTo("splash") { inclusive = true }
                         }
                     }

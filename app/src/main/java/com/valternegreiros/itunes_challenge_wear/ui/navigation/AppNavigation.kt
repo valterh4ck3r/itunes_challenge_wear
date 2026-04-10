@@ -10,6 +10,8 @@ import com.valternegreiros.itunes_challenge_wear.ui.features.album.AlbumScreen
 import com.valternegreiros.itunes_challenge_wear.ui.features.album.AlbumViewModel
 import com.valternegreiros.itunes_challenge_wear.ui.features.home.HomeScreen
 import com.valternegreiros.itunes_challenge_wear.ui.features.home.HomeViewModel
+import com.valternegreiros.itunes_challenge_wear.ui.features.main.MainNavigationScreen
+import com.valternegreiros.itunes_challenge_wear.ui.features.main.MainNavigationViewModel
 import com.valternegreiros.itunes_challenge_wear.ui.features.song.SongScreen
 import com.valternegreiros.itunes_challenge_wear.ui.features.song.SongViewModel
 import com.valternegreiros.itunes_challenge_wear.ui.features.splash.SplashScreen
@@ -27,6 +29,18 @@ fun AppNavigation(
         composable("splash") {
             SplashScreen()
         }
+        composable("main") {
+            val mainViewModel: MainNavigationViewModel = hiltViewModel()
+            MainNavigationScreen(
+                viewModel = mainViewModel,
+                onNavigateToSong = { songBase64 ->
+                    navController.navigate("song/$songBase64")
+                },
+                onNavigateToHome = {
+                    navController.navigate("home")
+                }
+            )
+        }
         composable("home") {
             val homeViewModel: HomeViewModel = hiltViewModel()
             HomeScreen(
@@ -41,8 +55,15 @@ fun AppNavigation(
             SongScreen(
                 viewModel = songViewModel,
                 onNavigateBack = {
-                    navController.navigate("home") { popUpTo("home") { inclusive = true } }
+                    navController.navigate("main") {
+                        popUpTo("main") { inclusive = true }
+                    }
                 },
+                onSwipeDown = {
+                    navController.navigate("main") {
+                        popUpTo("main") { inclusive = true }
+                    }
+                }
             )
         }
         composable("album/{songBase64}") {

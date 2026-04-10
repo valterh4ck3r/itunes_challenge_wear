@@ -5,6 +5,8 @@ import android.util.Base64
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -82,6 +84,13 @@ class SongViewModel @Inject constructor(
     }
 
     private fun setupPlayer() {
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+            .build()
+
+        player.setAudioAttributes(audioAttributes, true)
+
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _uiState.update { it.copy(isPlaying = isPlaying) }
@@ -169,11 +178,6 @@ class SongViewModel @Inject constructor(
 
     private fun markAsPlayed(song: Song) {
         viewModelScope.launch { repository.markSongAsPlayed(song) }
-    }
-
-    fun seekTo(progressMs: Long) {
-        player.seekTo(progressMs)
-        _uiState.update { it.copy(progressMs = progressMs) }
     }
 
     fun toggleRepeat() {

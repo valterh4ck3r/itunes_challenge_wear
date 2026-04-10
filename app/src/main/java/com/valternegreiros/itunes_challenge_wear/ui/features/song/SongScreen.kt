@@ -2,6 +2,7 @@ package com.valternegreiros.itunes_challenge_wear.ui.features.song
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -49,6 +51,7 @@ import java.util.Locale
 fun SongScreen(
     viewModel: SongViewModel,
     onNavigateBack: () -> Unit,
+    onSwipeDown: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val song = uiState.song
@@ -66,6 +69,13 @@ fun SongScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { _, dragAmount ->
+                    if (dragAmount > 50) { // Detected swipe down
+                        onSwipeDown()
+                    }
+                }
+            }
     ) {
         // 1. Background Album Art (Full Screen, dimmed)
         AsyncImage(
