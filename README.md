@@ -56,7 +56,7 @@ Ensure you have the correct Java version installed (JDK 21) and that your `JAVA_
 
 ### **2. Cloning the project**
 ```bash
-git clone https://github.com/valterh4ck3r/music_ai
+git clone [https://github.com/valterh4ck3r/music_ai](https://github.com/valterh4ck3r/itunes_challenge_wear)
 cd music-ai
 ```
 
