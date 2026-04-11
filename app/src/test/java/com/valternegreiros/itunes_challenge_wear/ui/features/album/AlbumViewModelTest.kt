@@ -70,4 +70,21 @@ class AlbumViewModelTest {
         assertTrue(viewModel.uiState.value is ResponseState.Error)
         assertEquals("Failed to load album info", (viewModel.uiState.value as ResponseState.Error).message)
     }
+
+    @Test
+    fun `onSongClicked should mark song as played and return encoded song`() = runTest {
+        // Given
+        val song = Song(trackId = 1, trackName = "Song 1", artistName = "Artist 1", collectionName = "Album 1", artworkUrl100 = null, previewUrl = null, trackTimeMillis = null)
+        io.mockk.coEvery { repository.markSongAsPlayed(any()) } returns Unit
+        every { savedStateHandle.get<String>(any()) } returns null
+
+        // When
+        viewModel = AlbumViewModel(savedStateHandle, repository, connectivityObserver)
+        var resultBase64: String? = null
+        viewModel.onSongClicked(song) { resultBase64 = it }
+
+        // Then
+        io.mockk.coVerify { repository.markSongAsPlayed(song) }
+        org.junit.Assert.assertNotNull(resultBase64)
+    }
 }

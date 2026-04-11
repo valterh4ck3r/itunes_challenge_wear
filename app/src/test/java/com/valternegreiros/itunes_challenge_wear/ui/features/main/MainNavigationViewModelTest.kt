@@ -21,11 +21,12 @@ class MainNavigationViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val repository: HomeRepository = mockk()
+    private val player: androidx.media3.exoplayer.ExoPlayer = mockk(relaxed = true)
     private lateinit var viewModel: MainNavigationViewModel
 
     @Before
     fun setUp() {
-        // Init happens in each test after mocking repository
+        every { player.currentMediaItem } returns null
     }
 
     @Test
@@ -36,7 +37,7 @@ class MainNavigationViewModelTest {
         every { repository.getAllCachedSongs(1) } returns flowOf(emptyList())
 
         // When
-        viewModel = MainNavigationViewModel(repository)
+        viewModel = MainNavigationViewModel(repository, player)
 
         // Then
         assertEquals(song, viewModel.lastPlayedSong.value)
@@ -49,7 +50,7 @@ class MainNavigationViewModelTest {
         every { repository.getRecentlyPlayedSongs() } returns flowOf(listOf(song))
         every { repository.getAllCachedSongs(1) } returns flowOf(emptyList())
 
-        viewModel = MainNavigationViewModel(repository)
+        viewModel = MainNavigationViewModel(repository, player)
 
         // When
         val result = viewModel.getEncodedLastSong()
