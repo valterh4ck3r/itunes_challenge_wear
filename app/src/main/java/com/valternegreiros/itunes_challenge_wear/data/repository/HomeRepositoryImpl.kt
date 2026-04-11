@@ -25,7 +25,8 @@ import javax.inject.Inject
 class HomeRepositoryImpl @Inject constructor(
     private val apiService: ITunesApiService,
     private val songDao: SongDao,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    @com.valternegreiros.itunes_challenge_wear.di.IoDispatcher private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher
 ) : HomeRepository {
 
     /**
@@ -73,7 +74,7 @@ class HomeRepositoryImpl @Inject constructor(
                 }
             }
         }
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(ioDispatcher)
 
     override fun getAlbumTracks(collectionId: Long): Flow<ResponseState<List<Song>>> = flow {
         emit(ResponseState.Loading)
@@ -92,18 +93,18 @@ class HomeRepositoryImpl @Inject constructor(
             val statusCode = (e as? HttpException)?.code()
             emit(ResponseState.Error(statusCode = statusCode, message = e.message ?: "Network error"))
         }
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(ioDispatcher)
 
     override fun getRecentlyPlayedSongs(): Flow<List<Song>> {
         return songDao.getRecentlyPlayed().map { entities ->
             entities.toDomainList()
-        }.flowOn(Dispatchers.IO)
+        }.flowOn(ioDispatcher)
     }
 
     override fun getAllCachedSongs(limit: Int): Flow<List<Song>> {
         return songDao.getAllCachedSongs(limit).map { entities ->
             entities.toDomainList()
-        }.flowOn(Dispatchers.IO)
+        }.flowOn(ioDispatcher)
     }
 
     override suspend fun markSongAsPlayed(song: Song) {
@@ -135,7 +136,7 @@ class HomeRepositoryImpl @Inject constructor(
     }
 
     private suspend fun downloadAndSavePreview(trackId: Long, previewUrl: String): String? {
-        return withContext(Dispatchers.IO) {
+        return withContext(ioDispatcher) {
             try {
                 val response = apiService.downloadFile(previewUrl)
                 if (response.isSuccessful) {

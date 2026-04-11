@@ -1,6 +1,6 @@
 package com.valternegreiros.itunes_challenge_wear.ui.features.main
 
-import android.util.Base64
+import com.valternegreiros.itunes_challenge_wear.ui.core.util.Base64Utils
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
@@ -38,6 +38,6 @@ class MainNavigationViewModel @Inject constructor(
     fun getEncodedLastSong(): String? {
         val song = _lastPlayedSong.value ?: return null
         val json = Gson().toJson(song)
-        return Base64.encodeToString(json.toByteArray(), Base64.NO_WRAP or Base64.URL_SAFE)
+        return Base64Utils.encode(json)
     }
 }

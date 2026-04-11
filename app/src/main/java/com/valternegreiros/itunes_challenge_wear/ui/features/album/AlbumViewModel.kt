@@ -1,6 +1,6 @@
 package com.valternegreiros.itunes_challenge_wear.ui.features.album
 
-import android.util.Base64
+import com.valternegreiros.itunes_challenge_wear.ui.core.util.Base64Utils
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -45,7 +45,7 @@ class AlbumViewModel @Inject constructor(
         val songBase64: String? = savedStateHandle["songBase64"]
         songBase64?.let { base64 ->
             try {
-                val json = String(Base64.decode(base64, Base64.URL_SAFE or Base64.NO_WRAP))
+                val json = Base64Utils.decode(base64)
                 val song = Gson().fromJson(json, Song::class.java)
                 
                 val albumQuery = song.collectionName ?: song.trackName

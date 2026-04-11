@@ -47,6 +47,7 @@ import com.valternegreiros.itunes_challenge_wear.ui.theme.OnDarkTextSecondary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.valternegreiros.itunes_challenge_wear.ui.core.util.Base64Utils
 
 @Composable
 fun AlbumScreen(
@@ -162,10 +163,7 @@ fun AlbumScreen(
                             albumArtUrl = songUi.albumArtUrl,
                             onClick = {
                                 val json = com.google.gson.Gson().toJson(songUi.originalSong)
-                                val base64 = android.util.Base64.encodeToString(
-                                    json.toByteArray(),
-                                    android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
-                                )
+                                val base64 = Base64Utils.encode(json)
                                 onSongClick(base64)
                             }
                         )

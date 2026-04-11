@@ -1,7 +1,7 @@
 package com.valternegreiros.itunes_challenge_wear.ui.features.song
 
 import android.content.Context
-import android.util.Base64
+import com.valternegreiros.itunes_challenge_wear.ui.core.util.Base64Utils
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -47,16 +47,8 @@ class SongViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: HomeRepository,
     private val connectivityObserver: NetworkConnectivityObserver,
-    @ApplicationContext context: Context,
-    okHttpClient: OkHttpClient // Injected from NetworkModule
+    private val player: ExoPlayer
 ) : ViewModel() {
-
-    private val player = ExoPlayer.Builder(context)
-        .setMediaSourceFactory(
-            androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
-                .setDataSourceFactory(OkHttpDataSource.Factory(okHttpClient))
-        )
-        .build()
 
     private val _uiState = MutableStateFlow(SongUiState())
     val uiState: StateFlow<SongUiState> = _uiState.asStateFlow()
@@ -71,7 +63,7 @@ class SongViewModel @Inject constructor(
         val songBase64: String? = savedStateHandle["songBase64"]
         songBase64?.let { base64 ->
             try {
-                val json = String(Base64.decode(base64, Base64.URL_SAFE or Base64.NO_WRAP))
+                val json = Base64Utils.decode(base64)
                 val song = Gson().fromJson(json, Song::class.java)
                 prepareSong(song)
                 markAsPlayed(song)

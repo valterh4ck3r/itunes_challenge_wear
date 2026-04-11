@@ -1,6 +1,6 @@
 package com.valternegreiros.itunes_challenge_wear.ui.features.home
 
-import android.util.Base64
+import com.valternegreiros.itunes_challenge_wear.ui.core.util.Base64Utils
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
@@ -100,7 +100,7 @@ class HomeViewModel @Inject constructor(
 
     fun encodeSongToBase64(song: Song): String {
         val json = Gson().toJson(song)
-        return Base64.encodeToString(json.toByteArray(), Base64.NO_WRAP or Base64.URL_SAFE)
+        return Base64Utils.encode(json)
     }
     
     fun onSongClicked(song: Song, onNavigate: (String) -> Unit) {
