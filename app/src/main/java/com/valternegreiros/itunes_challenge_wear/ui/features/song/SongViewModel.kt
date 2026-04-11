@@ -57,6 +57,32 @@ class SongViewModel @Inject constructor(
     private var playlist: List<Song> = emptyList()
     private var currentIndex: Int = -1
 
+    private val playerListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            _uiState.update { it.copy(isPlaying = isPlaying) }
+            if (isPlaying) startProgressUpdater() else stopProgressUpdater()
+        }
+
+        override fun onPlaybackStateChanged(state: Int) {
+            _uiState.update { it.copy(isLoading = state == Player.STATE_BUFFERING) }
+            if (state == Player.STATE_READY) {
+                _uiState.update { it.copy(totalMs = player.duration) }
+            }
+            if (state == Player.STATE_ENDED) {
+                if (_uiState.value.isRepeatEnabled) {
+                    player.seekTo(0)
+                    player.play()
+                } else {
+                    nextSong()
+                }
+            }
+        }
+
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            _uiState.update { it.copy(status = SongUiStatus.ERROR, isLoading = false) }
+        }
+    }
+
     init {
         setupPlayer()
         observeConnection()
@@ -91,47 +117,39 @@ class SongViewModel @Inject constructor(
             .build()
 
         player.setAudioAttributes(audioAttributes, true)
-
-        player.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                _uiState.update { it.copy(isPlaying = isPlaying) }
-                if (isPlaying) startProgressUpdater() else stopProgressUpdater()
-            }
-
-            override fun onPlaybackStateChanged(state: Int) {
-                _uiState.update { it.copy(isLoading = state == Player.STATE_BUFFERING) }
-                if (state == Player.STATE_READY) {
-                    _uiState.update { it.copy(totalMs = player.duration) }
-                }
-                if (state == Player.STATE_ENDED) {
-                    if (_uiState.value.isRepeatEnabled) {
-                        player.seekTo(0)
-                        player.play()
-                    } else {
-                        nextSong()
-                    }
-                }
-            }
-
-            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                _uiState.update { it.copy(status = SongUiStatus.ERROR, isLoading = false) }
-            }
-        })
+        player.addListener(playerListener)
     }
 
     private fun prepareSong(song: Song) {
+        val playbackUrl = song.previewUrlLocal ?: song.previewUrl
+        
+        // Update basic info in UI state
         _uiState.update {
             it.copy(
                 song = song,
-                progressMs = 0L,
-                totalMs = 0L,
-                isPlaying = false,
+                progressMs = if (player.currentMediaItem?.localConfiguration?.uri?.toString() == playbackUrl) player.currentPosition else 0L,
+                totalMs = if (player.currentMediaItem?.localConfiguration?.uri?.toString() == playbackUrl) player.duration else 0L,
+                isPlaying = player.isPlaying && player.currentMediaItem?.localConfiguration?.uri?.toString() == playbackUrl,
                 status = SongUiStatus.SUCCESS
             )
         }
-        val playbackUrl = song.previewUrlLocal ?: song.previewUrl
+
         playbackUrl?.let { url ->
-            val mediaItem = MediaItem.fromUri(url)
+            val currentMediaItem = player.currentMediaItem
+            val isSameSong = currentMediaItem?.localConfiguration?.uri?.toString() == url
+
+            if (isSameSong && player.playbackState != Player.STATE_IDLE) {
+                // Already playing/prepared this song, just sync state and ensure it's playing
+                if (!player.isPlaying) player.play()
+                _uiState.update { it.copy(totalMs = player.duration, isPlaying = true) }
+                return
+            }
+
+            val mediaItem = MediaItem.Builder()
+                .setUri(url)
+                .setMediaId(song.trackId.toString())
+                .setTag(song)
+                .build()
             player.setMediaItem(mediaItem)
             player.prepare()
             player.play()
@@ -201,6 +219,7 @@ class SongViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        player.release()
+        player.removeListener(playerListener)
+        stopProgressUpdater()
     }
 }

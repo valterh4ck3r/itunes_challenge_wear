@@ -162,9 +162,7 @@ fun AlbumScreen(
                             artist = songUi.artist,
                             albumArtUrl = songUi.albumArtUrl,
                             onClick = {
-                                val json = com.google.gson.Gson().toJson(songUi.originalSong)
-                                val base64 = Base64Utils.encode(json)
-                                onSongClick(base64)
+                                viewModel.onSongClicked(songUi.originalSong, onSongClick)
                             }
                         )
                     }

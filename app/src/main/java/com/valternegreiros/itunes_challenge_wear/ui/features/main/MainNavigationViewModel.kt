@@ -14,9 +14,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.MediaItem
+
 @HiltViewModel
 class MainNavigationViewModel @Inject constructor(
-    private val repository: HomeRepository
+    private val repository: HomeRepository,
+    private val player: ExoPlayer
 ) : ViewModel() {
 
     private val _lastPlayedSong = MutableStateFlow<Song?>(null)
@@ -36,7 +40,12 @@ class MainNavigationViewModel @Inject constructor(
     }
 
     fun getEncodedLastSong(): String? {
-        val song = _lastPlayedSong.value ?: return null
+        // 1. Try to get the song directly from the player (Ground Truth for Now Playing)
+        val songInPlayer = player.currentMediaItem?.localConfiguration?.tag as? Song
+        
+        // 2. Fallback to the last played song from DB
+        val song = songInPlayer ?: _lastPlayedSong.value ?: return null
+        
         val json = Gson().toJson(song)
         return Base64Utils.encode(json)
     }

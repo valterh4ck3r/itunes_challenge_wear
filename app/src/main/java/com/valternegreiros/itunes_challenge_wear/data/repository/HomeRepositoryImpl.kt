@@ -113,26 +113,28 @@ class HomeRepositoryImpl @Inject constructor(
         // 1. Fetch current stored data for this song from DB to keep local path
         val existingEntity = songDao.getSongById(song.trackId)
 
-        // 2. Prepare the new entity with current timestamp and existing local path
-        var updatedEntity = song.toEntity().copy(
+        // 2. Prepare the entity with current timestamp
+        var entity = song.toEntity().copy(
             lastPlayedAt = now,
             previewUrlLocal = existingEntity?.previewUrlLocal ?: song.previewUrlLocal
         )
 
-        // 3. Only download if we don't have it locally or the file was deleted
+        // 3. Update DB immediately so UI (Now Playing) reflects this change instantly
+        songDao.insertAll(listOf(entity))
+
+        // 4. Download in background if needed
         val needsDownload = song.previewUrl != null && (
-            updatedEntity.previewUrlLocal == null ||
-            !File(updatedEntity.previewUrlLocal).exists()
+            entity.previewUrlLocal == null ||
+            !File(entity.previewUrlLocal).exists()
         )
 
         if (needsDownload) {
             val localPath = downloadAndSavePreview(song.trackId, song.previewUrl)
             if (localPath != null) {
-                updatedEntity = updatedEntity.copy(previewUrlLocal = localPath)
+                entity = entity.copy(previewUrlLocal = localPath)
+                songDao.insertAll(listOf(entity))
             }
         }
-
-        songDao.insertAll(listOf(updatedEntity))
     }
 
     private suspend fun downloadAndSavePreview(trackId: Long, previewUrl: String): String? {

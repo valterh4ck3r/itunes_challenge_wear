@@ -109,4 +109,12 @@ class AlbumViewModel @Inject constructor(
             }
         }
     }
+    fun onSongClicked(song: Song, onNavigate: (String) -> Unit) {
+        viewModelScope.launch {
+            repository.markSongAsPlayed(song)
+            val json = Gson().toJson(song)
+            val base64 = Base64Utils.encode(json)
+            onNavigate(base64)
+        }
+    }
 }
